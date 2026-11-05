@@ -1,4 +1,4 @@
-##Repository 폴더 설명
+## Repository 폴더 설명
 
 - `app/`: FastAPI 백엔드 코드
   - `routers/`: 회원·팔로우·게시글·댓글 기능별 코드
