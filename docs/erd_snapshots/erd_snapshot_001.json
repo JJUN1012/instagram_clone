@@ -1,0 +1,452 @@
+{
+  "entityData": [
+    {
+      "_id": "Ne9JhcEJcvJ4ekwoQ",
+      "_diagramId": "tFk36asRDqziWnn2z",
+      "position": {
+        "x": 940,
+        "y": 600
+      },
+      "name": "Untitled",
+      "pName": "follows",
+      "fields": [],
+      "keys": {
+        "pks": [],
+        "fks": [
+          {
+            "_id": "rFR9MKrH8SuuKeFba",
+            "name": "Key",
+            "pName": "follower_id",
+            "domain": "",
+            "type": "BIGINT",
+            "defaultValue": "",
+            "isAllowNull": false,
+            "comment": "",
+            "relEntity": "PuNiDiPG2nF8viqS5",
+            "relFieldId": "nTGPH4PPZ5Hq4Xci6",
+            "relType": "ONE_OR_MANY",
+            "relGroupId": "6QLti5uMCXHFNzyR4"
+          },
+          {
+            "_id": "p2sZ7vMDA72Yqhy8y",
+            "name": "Key",
+            "pName": "followee_id",
+            "domain": "",
+            "type": "BIGINT",
+            "defaultValue": "",
+            "isAllowNull": false,
+            "comment": "",
+            "relEntity": "PuNiDiPG2nF8viqS5",
+            "relFieldId": "nTGPH4PPZ5Hq4Xci6",
+            "relType": "ONE_OR_MANY",
+            "relGroupId": "gDkSGLKoN5Tq95ZH6"
+          }
+        ]
+      },
+      "color": "rgba(178, 0, 120, 0.5)"
+    },
+    {
+      "_id": "PuNiDiPG2nF8viqS5",
+      "_diagramId": "tFk36asRDqziWnn2z",
+      "position": {
+        "x": 640,
+        "y": 310
+      },
+      "name": "Untitled2",
+      "pName": "user",
+      "fields": [
+        {
+          "_id": "Zg8KSb6gCpDRSd9En",
+          "name": "Field",
+          "pName": "user_username",
+          "domain": "",
+          "type": "varchar(50)",
+          "defaultValue": "",
+          "isAllowNull": false,
+          "comment": "",
+          "relEntity": null,
+          "relFieldId": null,
+          "relType": null,
+          "relGroupId": null
+        },
+        {
+          "_id": "mZmnERh3Hu9L5WcNa",
+          "name": "Field",
+          "pName": "user_name",
+          "domain": "",
+          "type": "varchar(50)",
+          "defaultValue": "",
+          "isAllowNull": false,
+          "comment": "",
+          "relEntity": null,
+          "relFieldId": null,
+          "relType": null,
+          "relGroupId": null
+        },
+        {
+          "_id": "BNhbQ6eRadzqCPeYd",
+          "name": "Field",
+          "pName": "user_password",
+          "domain": "",
+          "type": "varchar(50)",
+          "defaultValue": "",
+          "isAllowNull": false,
+          "comment": "",
+          "relEntity": null,
+          "relFieldId": null,
+          "relType": null,
+          "relGroupId": null
+        },
+        {
+          "_id": "3dkriuvQEwPczGF6G",
+          "name": "Field",
+          "pName": "user_bio",
+          "domain": "",
+          "type": "varchar(250)",
+          "defaultValue": "",
+          "isAllowNull": true,
+          "comment": "",
+          "relEntity": null,
+          "relFieldId": null,
+          "relType": null,
+          "relGroupId": null
+        },
+        {
+          "_id": "W4aoGCKuxzJbRPCoW",
+          "name": "Field",
+          "pName": "user_profile_url",
+          "domain": "",
+          "type": "TEXT",
+          "defaultValue": "기본 프로필 링크",
+          "isAllowNull": true,
+          "comment": "",
+          "relEntity": null,
+          "relFieldId": null,
+          "relType": null,
+          "relGroupId": null
+        }
+      ],
+      "keys": {
+        "pks": [
+          {
+            "_id": "nTGPH4PPZ5Hq4Xci6",
+            "name": "Key",
+            "pName": "user_id",
+            "domain": "",
+            "type": "BIGINT",
+            "defaultValue": "",
+            "isAllowNull": false,
+            "comment": "",
+            "relEntity": null,
+            "relFieldId": null,
+            "relType": null,
+            "relGroupId": null
+          }
+        ],
+        "fks": []
+      },
+      "color": "rgba(178, 0, 120, 0.5)"
+    },
+    {
+      "_id": "R8zJgJb8rnoj4Jgcy",
+      "_diagramId": "tFk36asRDqziWnn2z",
+      "position": {
+        "x": 150,
+        "y": 180
+      },
+      "name": "Untitled",
+      "pName": "post",
+      "fields": [
+        {
+          "_id": "LrdZ88x9HjwnsM2HD",
+          "name": "Field",
+          "pName": "post_content",
+          "domain": "",
+          "type": "varchar(2000)",
+          "defaultValue": "",
+          "isAllowNull": true,
+          "comment": "",
+          "relEntity": null,
+          "relFieldId": null,
+          "relType": null,
+          "relGroupId": null
+        },
+        {
+          "_id": "eDjZ9hYEeujWNgCKc",
+          "name": "Field",
+          "pName": "created_time",
+          "domain": "",
+          "type": "DATETIME",
+          "defaultValue": "",
+          "isAllowNull": false,
+          "comment": "",
+          "relEntity": null,
+          "relFieldId": null,
+          "relType": null,
+          "relGroupId": null
+        },
+        {
+          "_id": "6BFRaBM8kFba9dkeo",
+          "name": "Key",
+          "pName": "user_id",
+          "domain": "",
+          "type": "BIGINT",
+          "defaultValue": "",
+          "isAllowNull": false,
+          "comment": "",
+          "relEntity": "PuNiDiPG2nF8viqS5",
+          "relFieldId": "nTGPH4PPZ5Hq4Xci6",
+          "relType": "ONE_OR_MANY",
+          "relGroupId": "PwSpBB5QTe2f9EHgg"
+        }
+      ],
+      "keys": {
+        "pks": [
+          {
+            "_id": "dSNtkJEoBpTPfiZ4o",
+            "name": "Key",
+            "pName": "post_id",
+            "domain": "",
+            "type": "BIGINT",
+            "defaultValue": "",
+            "isAllowNull": false,
+            "comment": "",
+            "relEntity": null,
+            "relFieldId": null,
+            "relType": null,
+            "relGroupId": null
+          }
+        ],
+        "fks": []
+      },
+      "color": "rgba(0, 178, 100, 0.5)"
+    },
+    {
+      "_id": "kwETk2xkmbQd6qpHR",
+      "_diagramId": "tFk36asRDqziWnn2z",
+      "position": {
+        "x": 390,
+        "y": 520
+      },
+      "name": "Untitled",
+      "pName": "post_likes",
+      "fields": [
+        {
+          "_id": "DRdJ5aJnEktNbuYqD",
+          "name": "Key",
+          "pName": "post_id",
+          "domain": "",
+          "type": "BIGINT",
+          "defaultValue": "",
+          "isAllowNull": false,
+          "comment": "",
+          "relEntity": "R8zJgJb8rnoj4Jgcy",
+          "relFieldId": "dSNtkJEoBpTPfiZ4o",
+          "relType": "ONE_OR_MANY",
+          "relGroupId": "kiewCuntCRiZstLsW"
+        },
+        {
+          "_id": "dEyNgN4Ek78WcS7zC",
+          "name": "Key",
+          "pName": "user_id",
+          "domain": "",
+          "type": "BIGINT",
+          "defaultValue": "",
+          "isAllowNull": false,
+          "comment": "",
+          "relEntity": "PuNiDiPG2nF8viqS5",
+          "relFieldId": "nTGPH4PPZ5Hq4Xci6",
+          "relType": "ONE_OR_MANY",
+          "relGroupId": "HkDAwRWGMDHar7dSv"
+        },
+        {
+          "_id": "gTeyL8HFyatSimrmK",
+          "name": "Field",
+          "pName": "created_time",
+          "domain": "",
+          "type": "DATETIME",
+          "defaultValue": "",
+          "isAllowNull": false,
+          "comment": "",
+          "relEntity": null,
+          "relFieldId": null,
+          "relType": null,
+          "relGroupId": null
+        }
+      ],
+      "keys": {
+        "pks": [
+          {
+            "_id": "2qt742xx84RGugi3j",
+            "name": "Key",
+            "pName": "post_likes_id",
+            "domain": "",
+            "type": "BIGINT",
+            "defaultValue": "",
+            "isAllowNull": false,
+            "comment": "",
+            "relEntity": null,
+            "relFieldId": null,
+            "relType": null,
+            "relGroupId": null
+          }
+        ],
+        "fks": []
+      },
+      "color": "rgba(178, 69, 0, 0.5)"
+    },
+    {
+      "_id": "n9ca3xFRgdzmZh9xQ",
+      "_diagramId": "tFk36asRDqziWnn2z",
+      "position": {
+        "x": 540,
+        "y": 40
+      },
+      "name": "Untitled",
+      "pName": "post_image",
+      "fields": [
+        {
+          "_id": "AY9QkKBtG2yyqMmC7",
+          "name": "Field",
+          "pName": "post_image_url",
+          "domain": "",
+          "type": "TEXT",
+          "defaultValue": "",
+          "isAllowNull": false,
+          "comment": "",
+          "relEntity": null,
+          "relFieldId": null,
+          "relType": null,
+          "relGroupId": null
+        },
+        {
+          "_id": "GbNqcNxqqeaSW5b4J",
+          "name": "Key",
+          "pName": "post_id",
+          "domain": "",
+          "type": "BIGINT",
+          "defaultValue": "",
+          "isAllowNull": false,
+          "comment": "",
+          "relEntity": "R8zJgJb8rnoj4Jgcy",
+          "relFieldId": "dSNtkJEoBpTPfiZ4o",
+          "relType": "ONE_OR_MANY",
+          "relGroupId": "QjmLBEzkCgRapWRR5"
+        }
+      ],
+      "keys": {
+        "pks": [
+          {
+            "_id": "RPM65kKT6iWDysDpa",
+            "name": "Key",
+            "pName": "post_image_id",
+            "domain": "",
+            "type": "BIGINT",
+            "defaultValue": "",
+            "isAllowNull": false,
+            "comment": "",
+            "relEntity": null,
+            "relFieldId": null,
+            "relType": null,
+            "relGroupId": null
+          }
+        ],
+        "fks": []
+      },
+      "color": "rgba(0, 178, 100, 0.5)"
+    },
+    {
+      "_id": "tQJpdJ5eSiKpvND4P",
+      "_diagramId": "tFk36asRDqziWnn2z",
+      "position": {
+        "x": 320,
+        "y": 730
+      },
+      "name": "Untitled",
+      "pName": "comment",
+      "fields": [
+        {
+          "_id": "XTsSzgxGGe4DZcx27",
+          "name": "Key",
+          "pName": "user_id",
+          "domain": "",
+          "type": "BIGINT",
+          "defaultValue": "",
+          "isAllowNull": false,
+          "comment": "",
+          "relEntity": "PuNiDiPG2nF8viqS5",
+          "relFieldId": "nTGPH4PPZ5Hq4Xci6",
+          "relType": "ONE_OR_MANY",
+          "relGroupId": "av5vmWRpPzAgGkv3L"
+        },
+        {
+          "_id": "7rN4FxTSuphBWP7Py",
+          "name": "Key",
+          "pName": "post_id",
+          "domain": "",
+          "type": "BIGINT",
+          "defaultValue": "",
+          "isAllowNull": false,
+          "comment": "",
+          "relEntity": "R8zJgJb8rnoj4Jgcy",
+          "relFieldId": "dSNtkJEoBpTPfiZ4o",
+          "relType": "ONE_OR_MANY",
+          "relGroupId": "dLsHGSJhrabQhamFP"
+        },
+        {
+          "_id": "Ayn482K2NnHFtLio7",
+          "name": "Field",
+          "pName": "comment_content",
+          "domain": "",
+          "type": "varchar(1000)",
+          "defaultValue": "",
+          "isAllowNull": false,
+          "comment": "",
+          "relEntity": null,
+          "relFieldId": null,
+          "relType": null,
+          "relGroupId": null
+        },
+        {
+          "_id": "KHTZosuRqJHsRo8tk",
+          "name": "Field",
+          "pName": "comment_created_time",
+          "domain": "",
+          "type": "DATETIME",
+          "defaultValue": "",
+          "isAllowNull": false,
+          "comment": "",
+          "relEntity": null,
+          "relFieldId": null,
+          "relType": null,
+          "relGroupId": null
+        }
+      ],
+      "keys": {
+        "pks": [
+          {
+            "_id": "pZ5ccR9gxt4tZ65Nu",
+            "name": "Key",
+            "pName": "comment_id",
+            "domain": "",
+            "type": "BIGINT",
+            "defaultValue": "",
+            "isAllowNull": false,
+            "comment": "",
+            "relEntity": null,
+            "relFieldId": null,
+            "relType": null,
+            "relGroupId": null
+          }
+        ],
+        "fks": []
+      },
+      "color": "rgba(178, 69, 0, 0.5)"
+    }
+  ],
+  "memoData": [],
+  "domainData": [],
+  "createdAt": "2026-11-05T15:23:32.934Z",
+  "creatorName": "이준서",
+  "creatorThumb": "https://d2sqqdb3t4xrq5.cloudfront.net/images/no_img.jpg"
+}
