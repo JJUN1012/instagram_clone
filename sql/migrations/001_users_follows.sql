@@ -14,3 +14,4 @@ CREATE TABLE "follows" (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (follower_id, followed_id)
 );
+ 
