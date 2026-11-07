@@ -1,17 +1,18 @@
 -- 1. user 테이블 생성
-CREATE TABLE "user" (
-    id SERIAL PRIMARY KEY,
-    username VARCHAR(50) UNIQUE NOT NULL,
-    email VARCHAR(100) UNIQUE NOT NULL,
-    password_hash VARCHAR(255) NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+CREATE TABLE `user` (
+    `user_id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `user_username` VARCHAR(50) NOT NULL,
+    `user_name` VARCHAR(50) NOT NULL,
+    `user_password` VARCHAR(50) NOT NULL,
+    `user_bio` VARCHAR(250),
+    `user_profile_url` TEXT
 );
 
 -- 2. follows 테이블 생성
-CREATE TABLE "follows" (
-    follower_id INT REFERENCES "user"(id) ON DELETE CASCADE,
-    followed_id INT REFERENCES "user"(id) ON DELETE CASCADE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (follower_id, followed_id)
+CREATE TABLE `follows` (
+    `follower_id` BIGINT NOT NULL,
+    `followee_id` BIGINT NOT NULL,
+    PRIMARY KEY (`follower_id`, `followee_id`),
+    FOREIGN KEY (`follower_id`) REFERENCES `user`(`user_id`) ON DELETE CASCADE,
+    FOREIGN KEY (`followee_id`) REFERENCES `user`(`user_id`) ON DELETE CASCADE
 );
- 
