@@ -1,3 +1,11 @@
+## Test-codes Branch
+
+- DB서버 연결등을 테스트 하기 위해 만든 브랜치
+
+- main에서 pull만 하여 사용할 예정이며, 본 프로젝트에는 적용하지 않을 코드를 merge하지 않도록 주의.
+
+- 테스트 후 main에 적용해야 하는 feature은 다른 feature branch에 따로 적용하여 pr & merge할 것
+
 ## Repository 폴더 설명
 
 - `app/`: FastAPI 백엔드 코드
