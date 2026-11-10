@@ -1,10 +1,14 @@
 import os
+from pathlib import Path
 from uuid import uuid4
 
-from fastapi import FastAPI, HTTPException, UploadFile
+from fastapi import FastAPI, HTTPException, Request, UploadFile
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
 from supabase import create_client
 
 app = FastAPI()
+templates = Jinja2Templates(directory=Path(__file__).resolve().parent / "templates")
 supabase = create_client(
     os.environ["SUPABASE_URL"],
     os.environ["SUPABASE_SECRET_KEY"],
@@ -17,6 +21,18 @@ IMAGE_EXTENSIONS = {
     "image/webp": ".webp",
 }
 MAX_IMAGE_BYTES = 2 * 1024 * 1024
+
+
+@app.get("/", response_class=HTMLResponse)
+def upload_page(request: Request):
+    return templates.TemplateResponse(
+        request=request,
+        name="upload.html",
+        context={
+            "accepted_types": ",".join(IMAGE_EXTENSIONS),
+            "max_size_mb": MAX_IMAGE_BYTES // (1024 * 1024),
+        },
+    )
 
 
 @app.post("/images", status_code=201)
