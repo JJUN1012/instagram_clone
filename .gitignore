@@ -1,4 +1,5 @@
 /uploads/*
 !/uploads/.gitkeep
 .env
-/app/__pycache__/*
+__pycache__/
+ca.pem

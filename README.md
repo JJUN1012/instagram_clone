@@ -6,6 +6,19 @@
 
 - 테스트 후 main에 적용해야 하는 feature은 다른 feature branch에 따로 적용하여 pr & merge할 것
 
+## Aiven MySQL 테스트
+
+1. MySQL Workbench에서 관리자 계정으로 접속해 `sql/queries/aiven_test_setup.sql`을 실행하세요.
+2. `.env`의 `INSTAGRAM_APP_HOST`, `INSTAGRAM_APP_PORT`, `INSTAGRAM_APP_USER`, `INSTAGRAM_APP_PW`에 접속 정보를 설정하세요. `INSTAGRAM_APP_CA`에는 Aiven에서 받은 CA 인증서 경로를 넣으세요. 예를 들어 `INSTAGRAM_APP_CA=C:/Users/내이름/Downloads/ca.pem`처럼 설정할 수 있어요.
+3. 프로젝트 루트에서 드라이버를 설치하고 서버를 실행하세요.
+
+   ```powershell
+   py -m pip install "PyMySQL[rsa]"
+   py -m uvicorn app.main:app --reload --env-file .env
+   ```
+
+4. [Aiven MySQL 테스트 화면](http://127.0.0.1:8000/db-test)에서 `instagram.aiven_test_items`의 항목을 조회·추가·삭제할 수 있어요.
+
 ## Repository 폴더 설명
 
 - `app/`: FastAPI 백엔드 코드

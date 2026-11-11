@@ -7,7 +7,11 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from supabase import create_client
 
+from .routers import db_test
+
 app = FastAPI()
+app.include_router(db_test.router)
+app.add_exception_handler(db_test.DatabaseTestError, db_test.database_test_error_page)
 templates = Jinja2Templates(directory=Path(__file__).resolve().parent / "templates")
 supabase = create_client(
     os.environ["SUPABASE_URL"],
