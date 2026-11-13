@@ -1,6 +1,0 @@
-CREATE TABLE IF NOT EXISTS instagram.aiven_test_items (
-    id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(100) NOT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-SELECT * FROM instagram.aiven_test_items;
