@@ -1,0 +1,44 @@
+
+name: Deploy Instagram
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: instagram-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, windows, x64]
+
+    steps:
+      - name: Checkout latest code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Update publish folder
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          $source = $env:GITHUB_WORKSPACE
+          $dest = "C:\Users\junni\Documents\lecture\database-termproject\publish"
+
+          if (-not (Test-Path $dest)) {
+            throw "Publish folder not found: $dest"
+          }
+
+          robocopy "$source" "$dest" /E /R:2 /W:1 /XD .git .github .venv __pycache__ /XF .env .env.*
+
+          if ($LASTEXITCODE -ge 8) {
+            throw "Deployment file copy failed"
+          }
+
+          Write-Host "Deployment completed!"
+          Write-Host "Commit: $env:GITHUB_SHA"
