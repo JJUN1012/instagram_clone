@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ title }} · Instagram</title>
+  <link rel="stylesheet" href="{{ url_for('frontend_assets', path='css/instagram.css') }}">
+  <script type="module" src="{{ url_for('frontend_assets', path='js/instagram.js') }}"></script>
+</head>
+<body data-screen="{{ screen }}" data-username="{{ username }}" data-post-id="{{ post_id }}">
+{% macro icon(name) %}<svg class="icon" aria-hidden="true"><use href="#icon-{{ name }}"/></svg>{% endmacro %}
+<svg xmlns="http://www.w3.org/2000/svg" class="icon-library" aria-hidden="true">
+  <symbol id="icon-home" viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><path d="M9 21v-7h6v7"/></symbol>
+  <symbol id="icon-add" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="5"/><path d="M8 12h8m-4-4v8"/></symbol>
+  <symbol id="icon-user" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="10" r="3"/><path d="M6 18a6 6 0 0 1 12 0"/></symbol>
+  <symbol id="icon-heart" viewBox="0 0 24 24"><path d="M20.8 8.7c0 4-8.8 10-8.8 10s-8.8-6-8.8-10a4.7 4.7 0 0 1 8.8-2.3 4.7 4.7 0 0 1 8.8 2.3Z"/></symbol>
+  <symbol id="icon-comment" viewBox="0 0 24 24"><path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5 9 9 0 0 1-3.3-.6L4 21l1.6-5.1a8.5 8.5 0 1 1 15.4-4.4Z"/></symbol>
+  <symbol id="icon-back" viewBox="0 0 24 24"><path d="m14 5-7 7 7 7"/></symbol>
+  <symbol id="icon-image" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="4"/><circle cx="9" cy="9" r="1.5"/><path d="m3 17 5-4 4 3 4-6 5 5"/></symbol>
+  <symbol id="icon-settings" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
+  <symbol id="icon-send" viewBox="0 0 24 24"><path d="M12 19V5m-6 6 6-6 6 6"/></symbol>
+  <symbol id="icon-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18m6-18v18M3 9h18M3 15h18"/></symbol>
+</svg>
+{% set has_tabs = screen in ('feed', 'post') or (screen == 'profile' and not username) %}
+<div class="layout{% if has_tabs %} has-tabs{% endif %}">
+<main id="main" class="main{% if screen in ('login', 'signup') %} auth{% endif %}">
+  {% if screen == 'feed' %}
+    <header class="page-header feed-header">
+      <a class="icon-button" href="/posts/upload" aria-label="게시물 만들기">{{ icon('add') }}</a>
+      <h1 class="wordmark">Instagram</h1>
+    </header>
+    <div id="feed" class="feed-list" aria-busy="true"></div>
+    <button type="button" id="load-more" class="secondary" hidden>게시물 더 보기</button>
+  {% elif screen in ('login', 'signup') %}
+    <section class="panel auth-card">
+      {% if screen == 'signup' %}
+        <header class="auth-heading">
+          <a class="icon-button" href="/login" aria-label="로그인으로 돌아가기">{{ icon('back') }}</a>
+          <h1>회원가입</h1>
+        </header>
+      {% else %}
+        <h1 class="wordmark">Instagram</h1>
+      {% endif %}
+      <form method="post" id="auth-form">
+        <label>아이디<input name="username" autocomplete="username" maxlength="50" required></label>
+        <label>비밀번호<input name="password" type="password" autocomplete="{{ 'new-password' if screen == 'signup' else 'current-password' }}" required></label>
+        {% if screen == 'signup' %}<label>비밀번호 확인<input name="password_confirm" type="password" autocomplete="new-password" required></label><label>이름<input name="name" autocomplete="name" maxlength="50" required></label>{% endif %}
+        <button class="primary" type="submit">{{ '확인' if screen == 'signup' else '로그인' }}</button>
+      </form>
+      {% if screen == 'login' %}
+        <p class="auth-link">계정이 없나요? <a href="/signup">회원가입</a></p>
+      {% else %}
+        <p class="auth-link">계정이 있나요? <a href="/login">로그인</a></p>
+      {% endif %}
+    </section>
+  {% else %}
+    <header class="page-header">
+      {% if screen == 'profile' and not username %}
+        <a class="icon-button" href="/posts/upload" aria-label="게시물 만들기">{{ icon('add') }}</a>
+      {% else %}
+        <a class="icon-button" id="back-link" href="/timeline" aria-label="돌아가기">{{ icon('back') }}</a>
+      {% endif %}
+      <h1 id="page-title">{{ username if screen in ('profile', 'followers', 'following') and username else title }}</h1>
+      {% if screen == 'profile' and not username %}
+        <a class="icon-button header-end" href="/setting" aria-label="설정">{{ icon('settings') }}</a>
+      {% elif screen == 'edit' %}
+        <button class="text-button header-end" id="edit-actions" type="submit" form="edit-form" disabled>완료</button>
+      {% elif screen == 'upload' %}
+        <button class="text-button header-end" type="submit" form="upload-form">공유하기</button>
+      {% endif %}
+    </header>
+    {% if screen in ('post', 'comments') %}
+      <div id="post" class="feed-list" {% if screen == 'comments' %}hidden{% endif %}></div>
+      <section class="panel comments">
+        {% if screen == 'post' %}<h2>댓글</h2>{% endif %}
+        <ul id="comment-list" class="list" aria-busy="true"></ul>
+        <form method="post" id="comment-form" class="comment-form">
+          <span id="comment-avatar"></span>
+          <label class="sr-only" for="comment-content">댓글 내용</label>
+          <input id="comment-content" name="content" placeholder="댓글 달기…" maxlength="1000" required>
+          <button class="send-button icon-button" type="submit" aria-label="게시">{{ icon('send') }}</button>
+        </form>
+      </section>
+    {% elif screen == 'profile' %}
+      <div id="profile" aria-busy="true"></div>
+    {% elif screen in ('followers', 'following') %}
+      <nav id="follow-tabs" class="tabs" aria-label="팔로우 목록">
+        {% for tab in ('followers', 'following') %}
+          <a href="/users/{{ username | urlencode }}/{{ tab }}" data-tab="{{ tab }}" {% if screen == tab %}aria-current="page"{% endif %}>{{ '팔로워' if tab == 'followers' else '팔로잉' }}</a>
+        {% endfor %}
+      </nav>
+      <ul id="people" class="list" aria-busy="true"></ul>
+      <button type="button" id="load-more" class="secondary" hidden>더 보기</button>
+    {% elif screen == 'edit' %}
+      <form method="post" id="edit-form" enctype="multipart/form-data" class="panel form-card">
+        <label class="edit-photo">
+          <span class="avatar profile-avatar"><img id="profile-preview" alt="" hidden>{{ icon('user') }}</span>
+          <span>프로필 사진 수정</span>
+          <input class="sr-only" name="profile_image" type="file" accept="image/jpeg,image/png,image/webp">
+        </label>
+        <label>이름<input name="name" maxlength="50" autocomplete="name" required></label>
+        <label>아이디<input name="username" maxlength="50" autocomplete="username" required></label>
+        <label>소개<textarea name="bio" maxlength="250" rows="3"></textarea></label>
+      </form>
+    {% elif screen == 'settings' %}
+      <div class="panel settings">
+        <a href="/setting/password">비밀번호 변경 <span aria-hidden="true">›</span></a>
+        <button id="logout" type="button">로그아웃</button>
+      </div>
+    {% elif screen == 'password' %}
+      <form method="post" id="password-form" class="panel form-card">
+        <label>현재 비밀번호<input name="current_password" type="password" autocomplete="current-password" required></label>
+        <label>새 비밀번호<input name="new_password" type="password" autocomplete="new-password" required></label>
+        <label>새 비밀번호 확인<input name="password_confirm" type="password" autocomplete="new-password" required></label>
+        <button class="primary" type="submit">변경</button>
+      </form>
+    {% elif screen == 'upload' %}
+      <form method="post" id="upload-form" enctype="multipart/form-data" class="panel form-card">
+        <div class="upload-media">
+          <label class="upload-picker" title="사진 선택 (최대 10장)">{{ icon('add') }}
+            <span class="sr-only">사진 선택 (최대 10장)</span>
+            <input class="sr-only" name="images" type="file" accept="image/jpeg,image/png,image/webp" multiple>
+          </label>
+          <ol id="previews" class="previews"></ol>
+        </div>
+        <label class="caption-field"><span class="sr-only">캡션</span><textarea name="content" rows="5" maxlength="2000" placeholder="캡션을 추가하세요…"></textarea></label>
+        <output id="caption-count">0 / 2000</output>
+      </form>
+    {% endif %}
+  {% endif %}
+  <p id="status" class="status" role="status" aria-live="polite" hidden></p>
+</main>
+{% if has_tabs %}
+  <nav class="bottom-nav" aria-label="주 메뉴">
+    <a class="icon-button" href="/timeline" aria-label="홈"{% if screen == 'feed' %} aria-current="page"{% endif %}>{{ icon('home') }}</a>
+    <a class="icon-button" id="nav-profile" href="/me" aria-label="내 프로필"{% if screen == 'profile' %} aria-current="page"{% endif %}>{{ icon('user') }}</a>
+  </nav>
+{% endif %}
+</div>
+<template id="profile-grid-heading"><div class="profile-grid-heading" aria-hidden="true">{{ icon('grid') }}</div></template>
+<template id="post-card">
+  <article class="panel post-card">
+    <header class="post-header">
+      <a class="identity"></a><time></time><button class="text-button follow-button" type="button" hidden></button><button class="text-button delete-post" type="button" hidden>삭제</button>
+    </header>
+    <div class="post-media" hidden>
+      <button class="photo-open" type="button" aria-label="게시물 사진 보기"><img alt="게시물 사진"></button>
+      <button type="button" class="photo-step previous" aria-label="이전 사진" hidden>‹</button>
+      <button type="button" class="photo-step next" aria-label="다음 사진" hidden>›</button>
+      <span class="photo-index" hidden></span>
+    </div>
+    <div class="post-body">
+      <div class="post-actions">
+        <button class="icon-button like-button" type="button" aria-label="좋아요" aria-pressed="false">{{ icon('heart') }}</button>
+        <a class="icon-button comment-link" aria-label="댓글 보기">{{ icon('comment') }}</a>
+      </div>
+      <p class="like-count"></p>
+      <p class="caption"></p>
+      <a class="comment-link comment-count"></a>
+    </div>
+  </article>
+</template>
+</body>
+</html>
