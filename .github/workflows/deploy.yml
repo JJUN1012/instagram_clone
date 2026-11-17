@@ -17,11 +17,13 @@ jobs:
     runs-on: [self-hosted, windows, x64]
 
     steps:
+      # 1. GitHub 최신 코드 가져오기
       - name: Checkout latest code
         uses: actions/checkout@v4
         with:
           persist-credentials: false
 
+      # 2. 배포 폴더 업데이트
       - name: Update publish folder
         shell: powershell
         run: |
@@ -31,14 +33,62 @@ jobs:
           $dest = "C:\Users\junni\Documents\lecture\database-termproject\publish"
 
           if (-not (Test-Path $dest)) {
-            throw "Publish folder not found: $dest"
+            throw "Publish folder not found"
           }
 
           robocopy "$source" "$dest" /E /R:2 /W:1 /XD .git .github .venv __pycache__ /XF .env .env.*
 
           if ($LASTEXITCODE -ge 8) {
-            throw "Deployment file copy failed"
+            throw "File copy failed"
           }
 
-          Write-Host "Deployment completed!"
-          Write-Host "Commit: $env:GITHUB_SHA"
+          Write-Host "Code updated successfully"
+          exit 0
+
+      # 3. Python 패키지 설치
+      - name: Install dependencies
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          $dest = "C:\Users\junni\Documents\lecture\database-termproject\publish"
+          $python = "$dest\.venv\Scripts\python.exe"
+
+          if (-not (Test-Path $python)) {
+            throw "Python environment not found"
+          }
+
+          & $python -m pip install -r "$dest\requirements.txt"
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "Dependency installation failed"
+          }
+
+      # 4. FastAPI 서버 실행 및 재시작
+      - name: Restart FastAPI
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          $dest = "C:\Users\junni\Documents\lecture\database-termproject\publish"
+
+          if (-not (Test-Path "$dest\app\main.py")) {
+            throw "FastAPI main.py not found"
+          }
+
+          $service = Get-Service InstagramFastAPI -ErrorAction Stop
+
+          if ($service.Status -eq "Stopped") {
+            Start-Service InstagramFastAPI -ErrorAction Stop
+          }
+          else {
+            Restart-Service InstagramFastAPI -ErrorAction Stop
+          }
+
+          $service = Get-Service InstagramFastAPI
+          $service.WaitForStatus(
+            "Running",
+            [TimeSpan]::FromSeconds(15)
+          )
+
+          Write-Host "FastAPI service running"
