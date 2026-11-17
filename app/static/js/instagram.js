@@ -25,11 +25,12 @@ function showStatus(message = '', error = false) {
   status.classList.toggle('error', error);
 }
 
-async function api(path, { method = 'GET', body } = {}) {
+async function api(path, { method = 'GET', body, signal } = {}) {
   const json = body !== undefined && !(body instanceof FormData);
   const response = await fetch('/api/v1' + path, {
     method,
     credentials: 'same-origin',
+    signal,
     headers: { Accept: 'application/json', ...(json ? { 'Content-Type': 'application/json' } : {}) },
     body: json ? JSON.stringify(body) : body,
   });
@@ -102,6 +103,23 @@ function displayDate(value) {
   ).format(date);
 }
 
+function displayPostDate(value, now = Date.now()) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.valueOf())) return '';
+
+  const options = { hour: 'numeric', minute: '2-digit' };
+  if (now - date.getTime() >= 24 * 60 * 60 * 1000) {
+    options.month = 'long';
+    options.day = 'numeric';
+    const anniversary = new Date(date);
+    anniversary.setFullYear(date.getFullYear() + 1);
+    if (anniversary.getMonth() !== date.getMonth()) anniversary.setDate(0);
+    if (now >= anniversary.getTime()) options.year = 'numeric';
+  }
+  return new Intl.DateTimeFormat('ko-KR', options).format(date);
+}
+
 function setEmpty(container, message) {
   container.append(node(container.tagName === 'UL' ? 'li' : 'p', message, 'empty'));
 }
@@ -114,9 +132,10 @@ function imagesOf(post) {
 function postCard(post) {
   const card = select('#post-card').content.firstElementChild.cloneNode(true);
   select('.identity', card).replaceWith(identity(post.author));
-  const time = select('time', card);
-  time.textContent = displayDate(post.created_at);
+  const time = select('.post-time', card);
+  time.textContent = displayPostDate(post.created_at);
   time.dateTime = post.created_at || '';
+  time.hidden = !time.textContent;
 
   const photos = imagesOf(post);
   if (photos.length) {
@@ -208,9 +227,17 @@ function postCard(post) {
     });
   }
 
-  const remove = select('.delete-post', card);
   if (viewer && viewer.username === post.author.username) {
-    remove.hidden = false;
+    const options = select('.post-options', card);
+    const summary = select('summary', options);
+    const remove = select('.delete-post', options);
+    options.hidden = false;
+    options.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && options.open) {
+        options.open = false;
+        summary.focus();
+      }
+    });
     remove.onclick = () => {
       if (!window.confirm('이 게시물을 삭제할까요?')) return;
       run(remove, async () => {
@@ -444,9 +471,38 @@ function setupEdit() {
   });
 }
 
+async function preparePostPhoto(file) {
+  const size = 1080;
+  const source = URL.createObjectURL(file);
+  const photo = new Image();
+  const canvas = document.createElement('canvas');
+  try {
+    photo.src = source;
+    await photo.decode();
+    const width = photo.naturalWidth;
+    const height = photo.naturalHeight;
+    const side = Math.min(width, height);
+    canvas.width = size;
+    canvas.height = size;
+    const context = canvas.getContext('2d');
+    context.imageSmoothingQuality = 'high';
+    context.drawImage(photo, (width - side) / 2, (height - side) / 2, side, side, 0, 0, size, size);
+
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, file.type, 0.92));
+    if (!blob) throw new Error('사진을 변환하지 못했어요.');
+    const name = blob.type === file.type ? file.name : file.name.replace(/\.[^.]+$/, '') + '.png';
+    return new File([blob], name, { type: blob.type });
+  } finally {
+    URL.revokeObjectURL(source);
+    canvas.width = 0;
+    canvas.height = 0;
+  }
+}
+
 function setupUpload() {
   const form = select('#upload-form');
   const picker = form.elements.images;
+  const submit = select('button[form="upload-form"]');
   const list = select('#previews');
   const chosen = [];
   function redraw() {
@@ -473,30 +529,51 @@ function setupUpload() {
       list.append(item);
     });
   }
-  picker.onchange = () => {
-    showStatus();
+  picker.onchange = async () => {
     const files = Array.from(picker.files);
     picker.value = '';
+    if (!files.length || submit.disabled) return;
+    showStatus();
     if (chosen.length + files.length > 10) return showStatus('사진은 최대 10장까지 선택할 수 있어요.', true);
     if (files.some((file) => !imageTypes.includes(file.type) || !file.size)) {
       return showStatus('올바른 JPEG, PNG, WebP 사진을 선택해 주세요.', true);
     }
-    files.forEach((file) => chosen.push({ file, url: URL.createObjectURL(file) }));
-    redraw();
+
+    picker.disabled = true;
+    submit.disabled = true;
+    showStatus('사진을 준비하고 있어요…');
+    try {
+      const prepared = [];
+      for (const file of files) prepared.push(await preparePostPhoto(file));
+      prepared.forEach((file) => chosen.push({ file, url: URL.createObjectURL(file) }));
+      redraw();
+      showStatus();
+    } catch {
+      showStatus('선택한 사진을 변환하지 못했어요. 파일을 확인해 주세요.', true);
+    } finally {
+      picker.disabled = false;
+      submit.disabled = false;
+    }
   };
   form.elements.content.oninput = () => {
     select('#caption-count').textContent = form.elements.content.value.length + ' / 2000';
   };
   bindForm('#upload-form', async (_, body) => {
+    if (picker.disabled) return;
     if (!chosen.length) throw new Error('사진을 한 장 이상 선택해 주세요.');
     body.delete('images');
     chosen.forEach(({ file }) => body.append('images', file));
-    await api('/posts', { method: 'POST', body });
-    location.assign('/timeline');
+    picker.disabled = true;
+    try {
+      await api('/posts', { method: 'POST', body });
+      location.assign('/timeline');
+    } finally {
+      picker.disabled = false;
+    }
   });
 }
 
-function setBack(fallback, acceptsSource) {
+function setBack(fallback, acceptsSource, { useHistory = true } = {}) {
   const back = select('#back-link');
   if (!back) return;
   back.href = fallback;
@@ -504,6 +581,7 @@ function setBack(fallback, acceptsSource) {
   const source = new URL(document.referrer);
   if (source.origin !== location.origin || !acceptsSource(source.pathname)) return;
   back.href = source.pathname + source.search;
+  if (!useHistory) return;
   back.addEventListener('click', (event) => {
     if (history.length < 2 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     event.preventDefault();
@@ -511,14 +589,82 @@ function setBack(fallback, acceptsSource) {
   });
 }
 
+function setupUserSearch() {
+  const form = select('#user-search-form');
+  const input = form.elements.q;
+  const results = select('#search-results');
+  const notice = select('#search-status');
+  let scheduled;
+  let pending;
+
+  function message(text = '') {
+    notice.textContent = text;
+    notice.hidden = !text;
+  }
+
+  async function search(query) {
+    const request = new AbortController();
+    pending = request;
+    try {
+      const params = new URLSearchParams({ q: query });
+      const { items } = await api('/search/users?' + params, { signal: request.signal });
+      if (request.signal.aborted) return;
+      for (const user of items) {
+        const row = node('li', '', 'search-row');
+        const result = identity(user);
+        const account = node('span', '', 'search-account');
+        account.append(result.querySelector('strong'));
+        if (user.name) account.append(node('span', user.name, 'search-name'));
+        result.append(account);
+        row.append(result);
+        results.append(row);
+      }
+      message(items.length ? '' : '일치하는 계정이 없어요.');
+    } catch (error) {
+      if (!request.signal.aborted) message(error.message);
+    } finally {
+      if (!request.signal.aborted) results.setAttribute('aria-busy', 'false');
+    }
+  }
+
+  function update(delay = 250) {
+    clearTimeout(scheduled);
+    pending?.abort();
+    const query = input.value.trim().replace(/^@/, '').trim();
+    const params = new URLSearchParams();
+    if (query) params.set('q', query);
+    history.replaceState(history.state, '', '/search' + (query ? '?' + params : ''));
+    results.replaceChildren();
+    const shouldSearch = query.length > 0 && query.length <= 50;
+    message(query.length > 50 ? '아이디는 50자 이내로 검색해 주세요.' : query ? '검색 중…' : '');
+    results.setAttribute('aria-busy', String(shouldSearch));
+    if (shouldSearch) scheduled = setTimeout(() => search(query), delay);
+  }
+
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    update(0);
+  });
+  input.addEventListener('input', (event) => {
+    if (!event.isComposing) update();
+  });
+  input.addEventListener('compositionend', () => update());
+  input.value ||= (new URLSearchParams(location.search).get('q') || '').slice(0, input.maxLength);
+  if (input.value) update(0);
+}
+
 async function start() {
   if (screen === 'login' || screen === 'signup') return setupAuth();
+  if (screen === 'search') setupUserSearch();
   viewer = await api('/users/me');
   select('#nav-profile')?.replaceChildren(avatar(viewer));
   if (screen === 'feed') return appendPages('/feed', select('#feed'), postCard, '표시할 게시물이 없어요.');
   if (screen === 'profile') {
-    setBack('/timeline', (path) => path === '/timeline' || /^\/posts\/[^/]+(?:\/comments)?$/.test(path)
-      || /^\/users\/[^/]+\/(followers|following)$/.test(path));
+    setBack(
+      '/timeline',
+      (path) => path === '/timeline' || path === '/search' || /^\/posts\/[^/]+(?:\/comments)?$/.test(path),
+      { useHistory: false },
+    );
     return showProfile();
   }
   if (screen === 'post' || screen === 'comments') return showComments();
@@ -560,6 +706,20 @@ async function start() {
       location.assign('/setting');
     });
   }
+}
+
+document.addEventListener('pointerdown', (event) => {
+  const options = select('.post-options[open]');
+  if (options && !options.contains(event.target)) options.open = false;
+});
+
+if (screen === 'feed' || screen === 'post') {
+  setInterval(() => {
+    const now = Date.now();
+    for (const time of document.querySelectorAll('.post-time:not([hidden])')) {
+      time.textContent = displayPostDate(time.dateTime, now);
+    }
+  }, 60_000);
 }
 
 run(null, start);

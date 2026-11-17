@@ -1,0 +1,11 @@
+.auth-card {
+  overflow: visible;
+}
+
+.auth-card .wordmark {
+  font-family: "Feed Heading", "Explora", Georgia, serif;
+  font-size: clamp(36px, 12vw, 48px);
+  font-style: normal;
+  font-weight: 400;
+  letter-spacing: 0;
+}

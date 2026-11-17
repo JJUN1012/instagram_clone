@@ -14,6 +14,7 @@ PAGE_ROUTES = (
     ("/login", "login", "로그인"),
     ("/signup", "signup", "회원가입"),
     ("/timeline", "feed", "홈"),
+    ("/search", "search", "검색"),
     ("/me", "profile", "내 프로필"),
     ("/users/me/edit", "edit", "프로필 편집"),
     ("/users/{username}/followers", "followers", "팔로워"),

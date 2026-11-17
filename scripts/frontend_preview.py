@@ -5,7 +5,7 @@ from itertools import count
 from pathlib import Path
 from secrets import token_urlsafe
 
-from fastapi import APIRouter, FastAPI, File, Form, Request, UploadFile
+from fastapi import APIRouter, FastAPI, File, Form, Query, Request, UploadFile
 from fastapi.responses import JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
@@ -227,6 +227,25 @@ def profile_data(target, viewer):
         },
         "followed_by_me": (viewer["id"], user_id) in following,
     }
+
+
+@api.get("/search/users")
+async def search_users(request: Request, q: str = Query(default="", max_length=50)):
+    viewer = current_user(request)
+    term = q.strip().casefold()
+    if not term:
+        return {"items": []}
+
+    matches = []
+    for user in users.values():
+        username = user["username"].casefold()
+        if user["id"] == viewer["id"] or term not in username:
+            continue
+        rank = (username != term, not username.startswith(term), username)
+        result = {key: user[key] for key in ("id", "username", "name", "profile_image_url")}
+        matches.append((rank, result))
+    matches.sort(key=lambda match: match[0])
+    return {"items": [result for _, result in matches[:20]]}
 
 
 @api.get("/users/{username}")
