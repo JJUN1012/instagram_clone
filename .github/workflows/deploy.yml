@@ -1,0 +1,147 @@
+
+name: Deploy Instagram
+
+on:
+  workflow_dispatch:
+    inputs:
+      deploy_branch:
+        description: "배포할 Git 브랜치 이름"
+        required: true
+        default: "main"
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: instagram-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, windows, x64]
+
+    steps:
+      - name: Git Pull
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_BRANCH: ${{ inputs.deploy_branch }}
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          $dest = "C:\Users\junni\Documents\lecture\database-termproject\publish"
+          $branch = $env:TARGET_BRANCH
+
+          if (-not (Test-Path "$dest\.git")) {
+            throw "Git repository not found"
+          }
+
+          git check-ref-format --branch $branch
+          if ($LASTEXITCODE -ne 0) {
+            throw "Invalid branch name"
+          }
+
+          # Runner 계정과 Git 저장소 소유자가 다른 경우 처리
+          $env:GIT_CONFIG_COUNT = "2"
+          $env:GIT_CONFIG_KEY_0 = "safe.directory"
+          $env:GIT_CONFIG_VALUE_0 = $dest
+          $env:GIT_CONFIG_KEY_1 = "http.https://github.com/.extraheader"
+
+          $auth = [Convert]::ToBase64String(
+            [Text.Encoding]::UTF8.GetBytes(
+              "x-access-token:$env:GH_TOKEN"
+            )
+          )
+          $env:GIT_CONFIG_VALUE_1 = "AUTHORIZATION: basic $auth"
+          $env:GIT_TERMINAL_PROMPT = "0"
+
+          # 로컬 변경사항 보호
+          $changes = @(git -C $dest status --porcelain --untracked-files=no)
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "Git status failed"
+          }
+
+          if (($changes -join "").Trim().Length -gt 0) {
+            throw "Local modifications detected"
+          }
+
+          # 원격 브랜치 목록 갱신
+          git -C $dest fetch origin
+          if ($LASTEXITCODE -ne 0) {
+            throw "Git fetch failed"
+          }
+
+          git -C $dest show-ref --verify --quiet "refs/remotes/origin/$branch"
+          if ($LASTEXITCODE -ne 0) {
+            throw "Remote branch not found: $branch"
+          }
+
+          # 로컬 브랜치 존재 여부 확인
+          git -C $dest show-ref --verify --quiet "refs/heads/$branch"
+          $hasLocal = ($LASTEXITCODE -eq 0)
+
+          if ($hasLocal) {
+            git -C $dest switch $branch
+          }
+          else {
+            git -C $dest switch --track -c $branch "origin/$branch"
+          }
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "Branch switch failed"
+          }
+
+          # 선택한 브랜치 최신 코드 Pull
+          git -C $dest pull --ff-only origin $branch
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "Git pull failed"
+          }
+
+          git -C $dest log -1 --oneline
+          Write-Host "Deployed branch: $branch"
+
+      - name: Install dependencies
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $dest = "C:\Users\junni\Documents\lecture\database-termproject\publish"
+          $python = "$dest\.venv\Scripts\python.exe"
+
+          & $python -m pip install -r "$dest\requirements.txt"
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "Dependency installation failed"
+          }
+
+      - name: Restart FastAPI
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          $dest = "C:\Users\junni\Documents\lecture\database-termproject\publish"
+
+          if (-not (Test-Path "$dest\app\main.py")) {
+            throw "FastAPI main.py not found"
+          }
+
+          $service = Get-Service InstagramFastAPI -ErrorAction Stop
+
+          if ($service.Status -eq "Running") {
+            Restart-Service InstagramFastAPI -ErrorAction Stop
+          }
+          else {
+            Start-Service InstagramFastAPI -ErrorAction Stop
+          }
+
+          Start-Sleep -Seconds 3
+
+          $service = Get-Service InstagramFastAPI
+
+          if ($service.Status -ne "Running") {
+            throw "FastAPI service failed to start"
+          }
+
+          Write-Host "FastAPI service running!"
