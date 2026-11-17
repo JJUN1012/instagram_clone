@@ -1,0 +1,17 @@
+
+name: Test Runner
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: [self-hosted, windows, x64]
+
+    steps:
+      - name: Check Runner
+        shell: powershell
+        run: |
+          Write-Host "Runner connected!"
+          Write-Host "Computer: $env:COMPUTERNAME"
+          Write-Host "User: $(whoami)"
