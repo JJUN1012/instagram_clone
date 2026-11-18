@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from pydantic import BaseModel
-from app.database import get_db, upload_image_to_supabase
+from app.database import get_db, load_query, upload_image_to_supabase
 from app.routers.auth import hash_password, require_user
 from app.routers.posts import fetch_post_images, format_post
 
@@ -39,24 +39,20 @@ def update_me(
     clean_name = name.strip()
     clean_username = username.strip()
     if not clean_name or not clean_username:
-        raise HTTPException(status_code=400, detail="이름과 아이디를 입력해 주세요.")
+        raise HTTPException(status_code=400, detail="??? ???? ??? ???.")
 
     cur = db.cursor(dictionary=True)
     if clean_username != current_user["user_username"]:
-        cur.execute("SELECT user_id FROM user WHERE user_username = %s", (clean_username,))
+        cur.execute(load_query("users.sql", "check_username_duplicate"), (clean_username,))
         if cur.fetchone():
-            raise HTTPException(status_code=409, detail="이미 사용 중인 아이디입니다.")
+            raise HTTPException(status_code=409, detail="?? ?? ?? ??????.")
 
     new_profile_url = current_user["user_profile_url"]
     if profile_image and profile_image.filename:
         new_profile_url = upload_image_to_supabase(profile_image, folder="profiles")
 
     cur.execute(
-        """
-        UPDATE user
-        SET user_name = %s, user_username = %s, user_bio = %s, user_profile_url = %s
-        WHERE user_id = %s
-        """,
+        load_query("users.sql", "update_user_profile"),
         (clean_name, clean_username, bio, new_profile_url, current_user["user_id"]),
     )
     db.commit()
@@ -76,13 +72,13 @@ def change_password(
     current_user=Depends(require_user),
 ):
     cur = db.cursor(dictionary=True)
-    cur.execute("SELECT user_password FROM user WHERE user_id = %s", (current_user["user_id"],))
+    cur.execute(load_query("users.sql", "get_user_password"), (current_user["user_id"],))
     row = cur.fetchone()
     if row["user_password"] != hash_password(data.current_password):
-        raise HTTPException(status_code=400, detail="현재 비밀번호가 일치하지 않습니다.")
+        raise HTTPException(status_code=400, detail="?? ????? ???? ????.")
 
     cur.execute(
-        "UPDATE user SET user_password = %s WHERE user_id = %s",
+        load_query("users.sql", "update_user_password"),
         (hash_password(data.new_password), current_user["user_id"]),
     )
     db.commit()
@@ -102,13 +98,7 @@ def search_users(
     cur = db.cursor(dictionary=True)
     like_pattern = f"%{keyword}%"
     cur.execute(
-        """
-        SELECT user_id, user_username, user_name, user_bio, user_profile_url
-        FROM user
-        WHERE user_username LIKE %s OR user_name LIKE %s
-        ORDER BY user_username ASC
-        LIMIT 30
-        """,
+        load_query("users.sql", "search_users"),
         (like_pattern, like_pattern),
     )
     return {"items": [format_user_summary(u) for u in cur.fetchall()]}
@@ -116,19 +106,19 @@ def search_users(
 
 def get_profile_payload(cur, target_user: dict, viewer_id: int) -> dict:
     target_id = target_user["user_id"]
-    cur.execute("SELECT COUNT(*) AS cnt FROM post WHERE user_id = %s", (target_id,))
+    cur.execute(load_query("users.sql", "count_user_posts"), (target_id,))
     post_count = cur.fetchone()["cnt"]
 
-    cur.execute("SELECT COUNT(*) AS cnt FROM follows WHERE followee_id = %s", (target_id,))
+    cur.execute(load_query("users.sql", "count_user_followers"), (target_id,))
     follower_count = cur.fetchone()["cnt"]
 
-    cur.execute("SELECT COUNT(*) AS cnt FROM follows WHERE follower_id = %s", (target_id,))
+    cur.execute(load_query("users.sql", "count_user_following"), (target_id,))
     following_count = cur.fetchone()["cnt"]
 
     followed_by_me = False
     if viewer_id != target_id:
         cur.execute(
-            "SELECT 1 FROM follows WHERE follower_id = %s AND followee_id = %s",
+            load_query("users.sql", "check_is_following"),
             (viewer_id, target_id),
         )
         followed_by_me = bool(cur.fetchone())
@@ -147,10 +137,10 @@ def get_profile_payload(cur, target_user: dict, viewer_id: int) -> dict:
 @router.get("/users/{username}")
 def get_user_profile(username: str, db=Depends(get_db), current_user=Depends(require_user)):
     cur = db.cursor(dictionary=True)
-    cur.execute("SELECT * FROM user WHERE user_username = %s", (username,))
+    cur.execute(load_query("users.sql", "get_user_by_username"), (username,))
     target = cur.fetchone()
     if not target:
-        raise HTTPException(status_code=404, detail="존재하지 않는 사용자입니다.")
+        raise HTTPException(status_code=404, detail="???? ?? ??????.")
     return get_profile_payload(cur, target, current_user["user_id"])
 
 
@@ -163,10 +153,10 @@ def get_user_posts(
     current_user=Depends(require_user),
 ):
     cur = db.cursor(dictionary=True)
-    cur.execute("SELECT user_id FROM user WHERE user_username = %s", (username,))
+    cur.execute(load_query("users.sql", "get_user_id_by_username"), (username,))
     target = cur.fetchone()
     if not target:
-        raise HTTPException(status_code=404, detail="존재하지 않는 사용자입니다.")
+        raise HTTPException(status_code=404, detail="???? ?? ??????.")
 
     params = [current_user["user_id"], current_user["user_id"], target["user_id"]]
     where_cursor = ""
@@ -175,23 +165,8 @@ def get_user_posts(
         params.append(cursor)
     params.append(limit + 1)
 
-    cur.execute(
-        f"""
-        SELECT 
-            p.post_id, p.post_content, p.post_created_time,
-            u.user_id, u.user_username, u.user_name, u.user_profile_url,
-            (SELECT COUNT(*) FROM post_likes WHERE post_id = p.post_id) AS like_count,
-            (SELECT COUNT(*) FROM comment WHERE post_id = p.post_id) AS comment_count,
-            EXISTS(SELECT 1 FROM post_likes WHERE post_id = p.post_id AND user_id = %s) AS liked_by_me,
-            EXISTS(SELECT 1 FROM follows WHERE follower_id = %s AND followee_id = u.user_id) AS followed_by_me
-        FROM post p
-        JOIN user u ON p.user_id = u.user_id
-        WHERE p.user_id = %s {where_cursor}
-        ORDER BY p.post_id DESC
-        LIMIT %s
-        """,
-        tuple(params),
-    )
+    sql = load_query("users.sql", "get_user_posts").format(where_cursor=where_cursor)
+    cur.execute(sql, tuple(params))
     rows = cur.fetchall()
     has_next = len(rows) > limit
     rows = rows[:limit]
@@ -205,13 +180,13 @@ def get_user_posts(
 @router.post("/users/{username}/follow")
 def follow_user(username: str, db=Depends(get_db), current_user=Depends(require_user)):
     cur = db.cursor(dictionary=True)
-    cur.execute("SELECT * FROM user WHERE user_username = %s", (username,))
+    cur.execute(load_query("users.sql", "get_user_by_username"), (username,))
     target = cur.fetchone()
     if not target or target["user_id"] == current_user["user_id"]:
-        raise HTTPException(status_code=400, detail="잘못된 팔로우 요청입니다.")
+        raise HTTPException(status_code=400, detail="??? ??? ?????.")
 
     cur.execute(
-        "INSERT IGNORE INTO follows (follower_id, followee_id, follow_time) VALUES (%s, %s, NOW())",
+        load_query("users.sql", "insert_follow"),
         (current_user["user_id"], target["user_id"]),
     )
     db.commit()
@@ -221,13 +196,13 @@ def follow_user(username: str, db=Depends(get_db), current_user=Depends(require_
 @router.delete("/users/{username}/follow")
 def unfollow_user(username: str, db=Depends(get_db), current_user=Depends(require_user)):
     cur = db.cursor(dictionary=True)
-    cur.execute("SELECT * FROM user WHERE user_username = %s", (username,))
+    cur.execute(load_query("users.sql", "get_user_by_username"), (username,))
     target = cur.fetchone()
     if not target:
-        raise HTTPException(status_code=404, detail="존재하지 않는 사용자입니다.")
+        raise HTTPException(status_code=404, detail="???? ?? ??????.")
 
     cur.execute(
-        "DELETE FROM follows WHERE follower_id = %s AND followee_id = %s",
+        load_query("users.sql", "delete_follow"),
         (current_user["user_id"], target["user_id"]),
     )
     db.commit()
@@ -243,10 +218,10 @@ def get_followers(
     current_user=Depends(require_user),
 ):
     cur = db.cursor(dictionary=True)
-    cur.execute("SELECT user_id FROM user WHERE user_username = %s", (username,))
+    cur.execute(load_query("users.sql", "get_user_id_by_username"), (username,))
     target = cur.fetchone()
     if not target:
-        raise HTTPException(status_code=404, detail="존재하지 않는 사용자입니다.")
+        raise HTTPException(status_code=404, detail="???? ?? ??????.")
 
     params = [target["user_id"]]
     where_cursor = ""
@@ -255,17 +230,8 @@ def get_followers(
         params.append(cursor)
     params.append(limit + 1)
 
-    cur.execute(
-        f"""
-        SELECT u.user_id, u.user_username, u.user_name, u.user_bio, u.user_profile_url
-        FROM follows f
-        JOIN user u ON f.follower_id = u.user_id
-        WHERE f.followee_id = %s {where_cursor}
-        ORDER BY u.user_id DESC
-        LIMIT %s
-        """,
-        tuple(params),
-    )
+    sql = load_query("users.sql", "get_followers").format(where_cursor=where_cursor)
+    cur.execute(sql, tuple(params))
     rows = cur.fetchall()
     has_next = len(rows) > limit
     rows = rows[:limit]
@@ -283,10 +249,10 @@ def get_following(
     current_user=Depends(require_user),
 ):
     cur = db.cursor(dictionary=True)
-    cur.execute("SELECT user_id FROM user WHERE user_username = %s", (username,))
+    cur.execute(load_query("users.sql", "get_user_id_by_username"), (username,))
     target = cur.fetchone()
     if not target:
-        raise HTTPException(status_code=404, detail="존재하지 않는 사용자입니다.")
+        raise HTTPException(status_code=404, detail="???? ?? ??????.")
 
     params = [target["user_id"]]
     where_cursor = ""
@@ -295,17 +261,8 @@ def get_following(
         params.append(cursor)
     params.append(limit + 1)
 
-    cur.execute(
-        f"""
-        SELECT u.user_id, u.user_username, u.user_name, u.user_bio, u.user_profile_url
-        FROM follows f
-        JOIN user u ON f.followee_id = u.user_id
-        WHERE f.follower_id = %s {where_cursor}
-        ORDER BY u.user_id DESC
-        LIMIT %s
-        """,
-        tuple(params),
-    )
+    sql = load_query("users.sql", "get_following").format(where_cursor=where_cursor)
+    cur.execute(sql, tuple(params))
     rows = cur.fetchall()
     has_next = len(rows) > limit
     rows = rows[:limit]

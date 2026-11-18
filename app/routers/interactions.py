@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
-from app.database import get_db
+from app.database import get_db, load_query
 from app.routers.auth import require_user
 
 router = APIRouter(prefix="/api/v1")
@@ -14,12 +14,12 @@ class CommentRequest(BaseModel):
 def like_post(post_id: int, db=Depends(get_db), current_user=Depends(require_user)):
     cur = db.cursor()
     cur.execute(
-        "INSERT IGNORE INTO post_likes (user_id, post_id, created_time) VALUES (%s, %s, NOW())",
+        load_query("interactions.sql", "insert_post_like"),
         (current_user["user_id"], post_id),
     )
     db.commit()
 
-    cur.execute("SELECT COUNT(*) FROM post_likes WHERE post_id = %s", (post_id,))
+    cur.execute(load_query("interactions.sql", "count_post_likes"), (post_id,))
     like_count = cur.fetchone()[0]
     return {"liked_by_me": True, "like_count": like_count}
 
@@ -28,12 +28,12 @@ def like_post(post_id: int, db=Depends(get_db), current_user=Depends(require_use
 def unlike_post(post_id: int, db=Depends(get_db), current_user=Depends(require_user)):
     cur = db.cursor()
     cur.execute(
-        "DELETE FROM post_likes WHERE user_id = %s AND post_id = %s",
+        load_query("interactions.sql", "delete_post_like"),
         (current_user["user_id"], post_id),
     )
     db.commit()
 
-    cur.execute("SELECT COUNT(*) FROM post_likes WHERE post_id = %s", (post_id,))
+    cur.execute(load_query("interactions.sql", "count_post_likes"), (post_id,))
     like_count = cur.fetchone()[0]
     return {"liked_by_me": False, "like_count": like_count}
 
@@ -54,18 +54,8 @@ def list_comments(
         params.append(cursor)
     params.append(limit + 1)
 
-    cur.execute(
-        f"""
-        SELECT c.comment_id, c.comment_content, c.comment_created_time,
-               u.user_id, u.user_username, u.user_name, u.user_profile_url
-        FROM comment c
-        JOIN user u ON c.user_id = u.user_id
-        WHERE c.post_id = %s {where_cursor}
-        ORDER BY c.comment_id DESC
-        LIMIT %s
-        """,
-        tuple(params),
-    )
+    sql = load_query("interactions.sql", "list_comments").format(where_cursor=where_cursor)
+    cur.execute(sql, tuple(params))
     rows = cur.fetchall()
     has_next = len(rows) > limit
     rows = rows[:limit]
@@ -99,17 +89,17 @@ def create_comment(
 ):
     content = data.content.strip()
     if not content:
-        raise HTTPException(status_code=400, detail="댓글 내용을 입력해 주세요.")
+        raise HTTPException(status_code=400, detail="?? ??? ??? ???.")
 
     cur = db.cursor(dictionary=True)
     cur.execute(
-        "INSERT INTO comment (user_id, post_id, comment_content, comment_created_time) VALUES (%s, %s, %s, NOW())",
+        load_query("interactions.sql", "insert_comment"),
         (current_user["user_id"], post_id, content),
     )
     new_id = cur.lastrowid
     db.commit()
 
-    cur.execute("SELECT comment_created_time FROM comment WHERE comment_id = %s", (new_id,))
+    cur.execute(load_query("interactions.sql", "get_comment_created_time"), (new_id,))
     created = cur.fetchone()["comment_created_time"]
 
     return {
@@ -128,13 +118,13 @@ def create_comment(
 @router.delete("/comments/{comment_id}")
 def delete_comment(comment_id: int, db=Depends(get_db), current_user=Depends(require_user)):
     cur = db.cursor(dictionary=True)
-    cur.execute("SELECT user_id FROM comment WHERE comment_id = %s", (comment_id,))
+    cur.execute(load_query("interactions.sql", "get_comment_owner"), (comment_id,))
     comment = cur.fetchone()
     if not comment:
-        raise HTTPException(status_code=404, detail="댓글을 찾을 수 없습니다.")
+        raise HTTPException(status_code=404, detail="??? ?? ? ????.")
     if comment["user_id"] != current_user["user_id"]:
-        raise HTTPException(status_code=403, detail="본인 댓글만 삭제할 수 있습니다.")
+        raise HTTPException(status_code=403, detail="?? ??? ??? ? ????.")
 
-    cur.execute("DELETE FROM comment WHERE comment_id = %s", (comment_id,))
+    cur.execute(load_query("interactions.sql", "delete_comment"), (comment_id,))
     db.commit()
     return {"success": True}

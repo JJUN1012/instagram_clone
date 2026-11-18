@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
-from app.database import get_db, upload_image_to_supabase
+from app.database import get_db, load_query, upload_image_to_supabase
 from app.routers.auth import require_user
 
 router = APIRouter(prefix="/api/v1")
@@ -30,10 +30,8 @@ def fetch_post_images(cursor, post_ids: list[int]) -> dict[int, list[str]]:
     if not post_ids:
         return {}
     placeholders = ",".join(["%s"] * len(post_ids))
-    cursor.execute(
-        f"SELECT post_id, post_image_url FROM post_image WHERE post_id IN ({placeholders}) ORDER BY post_image_id ASC",
-        tuple(post_ids),
-    )
+    sql = load_query("posts.sql", "get_post_images").format(placeholders=placeholders)
+    cursor.execute(sql, tuple(post_ids))
     mapping: dict[int, list[str]] = {pid: [] for pid in post_ids}
     for r in cursor.fetchall():
         mapping[r["post_id"]].append(r["post_image_url"])
@@ -55,23 +53,8 @@ def get_feed(
         params.append(cursor)
     params.append(limit + 1)
 
-    cur.execute(
-        f"""
-        SELECT 
-            p.post_id, p.post_content, p.post_created_time,
-            u.user_id, u.user_username, u.user_name, u.user_profile_url,
-            (SELECT COUNT(*) FROM post_likes WHERE post_id = p.post_id) AS like_count,
-            (SELECT COUNT(*) FROM comment WHERE post_id = p.post_id) AS comment_count,
-            EXISTS(SELECT 1 FROM post_likes WHERE post_id = p.post_id AND user_id = %s) AS liked_by_me,
-            EXISTS(SELECT 1 FROM follows WHERE follower_id = %s AND followee_id = u.user_id) AS followed_by_me
-        FROM post p
-        JOIN user u ON p.user_id = u.user_id
-        {where_clause}
-        ORDER BY p.post_id DESC
-        LIMIT %s
-        """,
-        tuple(params),
-    )
+    sql = load_query("posts.sql", "get_feed").format(where_clause=where_clause)
+    cur.execute(sql, tuple(params))
     rows = cur.fetchall()
     has_next = len(rows) > limit
     rows = rows[:limit]
@@ -90,24 +73,22 @@ def create_post(
     current_user=Depends(require_user),
 ):
     if not images:
-        raise HTTPException(status_code=400, detail="사진을 한 장 이상 선택해 주세요.")
+        raise HTTPException(status_code=400, detail="??? 1? ?? ??? ???.")
     if len(images) > 10:
-        raise HTTPException(status_code=400, detail="사진은 최대 10장까지 업로드할 수 있습니다.")
+        raise HTTPException(status_code=400, detail="??? ?? 10??? ???? ? ????.")
 
     uploaded_urls = [upload_image_to_supabase(img, folder="posts") for img in images]
 
     cur = db.cursor()
     cur.execute(
-        "INSERT INTO post (post_content, post_created_time, user_id) VALUES (%s, NOW(), %s)",
+        load_query("posts.sql", "insert_post"),
         (content, current_user["user_id"]),
     )
     new_post_id = cur.lastrowid
 
+    insert_img_sql = load_query("posts.sql", "insert_post_image")
     for url in uploaded_urls:
-        cur.execute(
-            "INSERT INTO post_image (post_image_url, post_id) VALUES (%s, %s)",
-            (url, new_post_id),
-        )
+        cur.execute(insert_img_sql, (url, new_post_id))
     db.commit()
     return {"success": True, "id": new_post_id}
 
@@ -116,23 +97,12 @@ def create_post(
 def get_post_detail(post_id: int, db=Depends(get_db), current_user=Depends(require_user)):
     cur = db.cursor(dictionary=True)
     cur.execute(
-        """
-        SELECT 
-            p.post_id, p.post_content, p.post_created_time,
-            u.user_id, u.user_username, u.user_name, u.user_profile_url,
-            (SELECT COUNT(*) FROM post_likes WHERE post_id = p.post_id) AS like_count,
-            (SELECT COUNT(*) FROM comment WHERE post_id = p.post_id) AS comment_count,
-            EXISTS(SELECT 1 FROM post_likes WHERE post_id = p.post_id AND user_id = %s) AS liked_by_me,
-            EXISTS(SELECT 1 FROM follows WHERE follower_id = %s AND followee_id = u.user_id) AS followed_by_me
-        FROM post p
-        JOIN user u ON p.user_id = u.user_id
-        WHERE p.post_id = %s
-        """,
+        load_query("posts.sql", "get_post_detail"),
         (current_user["user_id"], current_user["user_id"], post_id),
     )
     row = cur.fetchone()
     if not row:
-        raise HTTPException(status_code=404, detail="게시글을 찾을 수 없습니다.")
+        raise HTTPException(status_code=404, detail="???? ?? ? ????.")
 
     images_map = fetch_post_images(cur, [post_id])
     return format_post(row, images_map.get(post_id, []))
@@ -141,16 +111,16 @@ def get_post_detail(post_id: int, db=Depends(get_db), current_user=Depends(requi
 @router.delete("/posts/{post_id}")
 def delete_post(post_id: int, db=Depends(get_db), current_user=Depends(require_user)):
     cur = db.cursor(dictionary=True)
-    cur.execute("SELECT user_id FROM post WHERE post_id = %s", (post_id,))
+    cur.execute(load_query("posts.sql", "get_post_owner"), (post_id,))
     post = cur.fetchone()
     if not post:
-        raise HTTPException(status_code=404, detail="게시글을 찾을 수 없습니다.")
+        raise HTTPException(status_code=404, detail="???? ?? ? ????.")
     if post["user_id"] != current_user["user_id"]:
-        raise HTTPException(status_code=403, detail="본인 게시글만 삭제할 수 있습니다.")
+        raise HTTPException(status_code=403, detail="?? ???? ??? ? ????.")
 
-    cur.execute("DELETE FROM post_image WHERE post_id = %s", (post_id,))
-    cur.execute("DELETE FROM post_likes WHERE post_id = %s", (post_id,))
-    cur.execute("DELETE FROM comment WHERE post_id = %s", (post_id,))
-    cur.execute("DELETE FROM post WHERE post_id = %s", (post_id,))
+    cur.execute(load_query("posts.sql", "delete_post_images"), (post_id,))
+    cur.execute(load_query("posts.sql", "delete_post_likes"), (post_id,))
+    cur.execute(load_query("posts.sql", "delete_post_comments"), (post_id,))
+    cur.execute(load_query("posts.sql", "delete_post"), (post_id,))
     db.commit()
     return {"success": True}

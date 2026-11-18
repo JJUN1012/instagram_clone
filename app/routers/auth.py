@@ -3,7 +3,7 @@ import secrets
 from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel
-from app.database import get_db
+from app.database import get_db, load_query
 
 router = APIRouter(prefix="/api/v1")
 
@@ -31,15 +31,7 @@ def get_current_user(request: Request, db=Depends(get_db)):
         return None
 
     cursor = db.cursor(dictionary=True)
-    cursor.execute(
-        """
-        SELECT u.user_id, u.user_username, u.user_name, u.user_bio, u.user_profile_url, s.session_expires_at
-        FROM session s
-        JOIN user u ON s.user_id = u.user_id
-        WHERE s.session_id = %s
-        """,
-        (session_id,),
-    )
+    cursor.execute(load_query("auth.sql", "get_session_user"), (session_id,))
     row = cursor.fetchone()
     if not row or row["session_expires_at"] < datetime.now():
         return None
@@ -48,7 +40,7 @@ def get_current_user(request: Request, db=Depends(get_db)):
 
 def require_user(current_user=Depends(get_current_user)):
     if not current_user:
-        raise HTTPException(status_code=401, detail="로그인이 필요합니다.")
+        raise HTTPException(status_code=401, detail="???? ?????.")
     return current_user
 
 
@@ -60,16 +52,16 @@ def signup(data: SignupRequest, response: Response, db=Depends(get_db)):
 
     if not username or not password:
         response.status_code = 400
-        return {"success": False, "error": {"code": "INVALID_INPUT", "message": "아이디와 비밀번호를 모두 입력해주세요."}}
+        return {"success": False, "error": {"code": "INVALID_INPUT", "message": "???? ????? ?? ??????."}}
 
     cursor = db.cursor(dictionary=True)
-    cursor.execute("SELECT user_id FROM user WHERE user_username = %s", (username,))
+    cursor.execute(load_query("auth.sql", "check_username_exists"), (username,))
     if cursor.fetchone():
         response.status_code = 409
-        return {"success": False, "error": {"code": "DUPLICATE_USER", "message": "이미 사용 중인 아이디입니다."}}
+        return {"success": False, "error": {"code": "DUPLICATE_USER", "message": "?? ?? ?? ??????."}}
 
     cursor.execute(
-        "INSERT INTO user (user_username, user_name, user_password) VALUES (%s, %s, %s)",
+        load_query("auth.sql", "insert_user"),
         (username, name, hash_password(password)),
     )
     db.commit()
@@ -82,24 +74,21 @@ def login(data: LoginRequest, response: Response, db=Depends(get_db)):
     password = data.password
 
     cursor = db.cursor(dictionary=True)
-    cursor.execute(
-        "SELECT user_id, user_username, user_name, user_password FROM user WHERE user_username = %s",
-        (username,),
-    )
+    cursor.execute(load_query("auth.sql", "get_user_for_login"), (username,))
     user = cursor.fetchone()
 
     if not user or user["user_password"] != hash_password(password):
         response.status_code = 401
         return {
             "success": False,
-            "error": {"code": "INVALID_CREDENTIALS", "message": "아이디 또는 비밀번호가 올바르지 않습니다."},
+            "error": {"code": "INVALID_CREDENTIALS", "message": "??? ?? ????? ???? ????."},
         }
 
     session_id = secrets.token_hex(32)
     expires_at = datetime.now() + timedelta(days=30)
 
     cursor.execute(
-        "INSERT INTO session (session_id, user_id, session_expires_at) VALUES (%s, %s, %s)",
+        load_query("auth.sql", "insert_session"),
         (session_id, user["user_id"], expires_at),
     )
     db.commit()
@@ -123,7 +112,7 @@ def logout(request: Request, response: Response, db=Depends(get_db)):
     session_id = request.cookies.get("session_id")
     if session_id:
         cursor = db.cursor()
-        cursor.execute("DELETE FROM session WHERE session_id = %s", (session_id,))
+        cursor.execute(load_query("auth.sql", "delete_session"), (session_id,))
         db.commit()
     response.delete_cookie("session_id")
     return {"success": True, "redirect_url": "/login"}

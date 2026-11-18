@@ -1,4 +1,5 @@
 import os
+from functools import lru_cache
 from pathlib import Path
 from uuid import uuid4
 import mysql.connector
@@ -6,11 +7,12 @@ from dotenv import load_dotenv
 from fastapi import HTTPException, UploadFile
 from supabase import create_client
 
-# 프로젝트 루트(instagram_clone)의 .env 파일 로드
+# ???? ??(instagram_clone)? .env ?? ??
 BASE_DIR = Path(__file__).resolve().parent.parent
+QUERIES_DIR = BASE_DIR / "sql" / "queries"
 load_dotenv(BASE_DIR / ".env")
 
-# Supabase Storage 설정
+# Supabase Storage ??
 supabase = create_client(
     os.environ["SUPABASE_URL"],
     os.environ["SUPABASE_SECRET_KEY"],
@@ -22,11 +24,41 @@ IMAGE_EXTENSIONS = {
     "image/png": ".png",
     "image/webp": ".webp",
 }
-MAX_IMAGE_BYTES = 5 * 1024 * 1024  # 최대 5MB
+MAX_IMAGE_BYTES = 5 * 1024 * 1024  # ?? 5MB
+
+
+@lru_cache(maxsize=None)
+def _parse_sql_file(filename: str) -> dict[str, str]:
+    """sql/queries/*.sql ??? ?? '-- name: ????' ???? ??"""
+    sql_path = QUERIES_DIR / filename
+    text = sql_path.read_text(encoding="utf-8")
+    queries: dict[str, str] = {}
+    current_name: str | None = None
+    buffer: list[str] = []
+
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("-- name:"):
+            if current_name and buffer:
+                queries[current_name] = "\n".join(buffer).strip().rstrip(";")
+            current_name = stripped.split(":", 1)[1].strip()
+            buffer = []
+        elif current_name is not None:
+            buffer.append(line)
+
+    if current_name and buffer:
+        queries[current_name] = "\n".join(buffer).strip().rstrip(";")
+
+    return queries
+
+
+def load_query(filename: str, query_name: str) -> str:
+    """sql/queries/ ??? ??? SQL ??? ???? ??"""
+    return _parse_sql_file(filename)[query_name]
 
 
 def get_db():
-    """Aiven MySQL DB 연결을 생성하고 요청이 끝나면 자동으로 닫아주는 의존성 함수"""
+    """Aiven MySQL DB ??? ???? ??? ??? ???? ???? ??? ??"""
     conn = mysql.connector.connect(
         host=os.environ["INSTAGRAM_APP_HOST"],
         port=int(os.environ["INSTAGRAM_APP_PORT"]),
@@ -42,17 +74,17 @@ def get_db():
 
 
 def upload_image_to_supabase(file: UploadFile, folder: str = "posts") -> str:
-    """이미지 파일을 검증 후 Supabase Storage에 업로드하고 Public URL을 반환"""
+    """??? ??? ?? ? Supabase Storage? ????? Public URL? ??"""
     content_type = file.content_type or ""
     extension = IMAGE_EXTENSIONS.get(content_type)
     if extension is None:
-        raise HTTPException(status_code=415, detail="JPEG, PNG, WebP만 업로드할 수 있습니다.")
+        raise HTTPException(status_code=415, detail="JPEG, PNG, WebP? ???? ? ????.")
 
     data = file.file.read(MAX_IMAGE_BYTES + 1)
     if not data:
-        raise HTTPException(status_code=400, detail="빈 파일입니다.")
+        raise HTTPException(status_code=400, detail="? ?????.")
     if len(data) > MAX_IMAGE_BYTES:
-        raise HTTPException(status_code=413, detail="사진은 최대 5MB까지 업로드할 수 있습니다.")
+        raise HTTPException(status_code=413, detail="??? ?? 5MB?? ???? ? ????.")
 
     path = f"{folder}/{uuid4().hex}{extension}"
     bucket.upload(path, data, file_options={"content-type": content_type})
