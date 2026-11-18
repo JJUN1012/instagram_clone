@@ -129,6 +129,101 @@ function imagesOf(post) {
     ? post.image_urls : [post.image_url].filter(Boolean);
 }
 
+function setupPhotoGallery(media, urls, postId) {
+  let index = 0;
+  const open = select('.photo-open', media);
+  const track = select('.photo-track', media);
+  const previous = select('.previous', media);
+  const next = select('.next', media);
+  const position = select('.photo-index', media);
+  const photos = urls.map((url, i) => {
+    const photo = image(url, '게시물 사진 ' + (i + 1));
+    photo.draggable = false;
+    return photo;
+  });
+  track.append(...photos);
+  media.hidden = false;
+
+  function showPhoto() {
+    track.style.setProperty('--photo-position', -100 * index + '%');
+    photos.forEach((photo, i) => photo.setAttribute('aria-hidden', String(i !== index)));
+    position.textContent = (index + 1) + ' / ' + photos.length;
+    position.hidden = photos.length < 2;
+    previous.hidden = index === 0;
+    next.hidden = index === photos.length - 1;
+  }
+
+  const canStep = (direction) => photos[index + direction] !== undefined;
+  function step(direction) {
+    if (!canStep(direction)) return;
+    index += direction;
+    showPhoto();
+  }
+
+  if (photos.length > 1) enablePhotoDragging(open, track, canStep, step);
+  previous.onclick = () => step(-1);
+  next.onclick = () => step(1);
+  open.addEventListener('click', () => {
+    if (screen !== 'post') {
+      location.assign(postUrl(postId));
+      return;
+    }
+    const url = new URL(urls[index], location.origin);
+    if (['https:', 'http:'].includes(url.protocol)) {
+      window.open(url.href, '_blank', 'noopener,noreferrer');
+    }
+  });
+  showPhoto();
+}
+
+function enablePhotoDragging(button, track, canStep, step) {
+  button.classList.add('photo-draggable');
+  let drag;
+  let suppressClick = false;
+
+  button.addEventListener('pointerdown', (event) => {
+    if (!event.isPrimary || event.button !== 0) return;
+    suppressClick = false;
+    drag = { id: event.pointerId, x: event.clientX, y: event.clientY, width: button.clientWidth };
+    button.setPointerCapture(event.pointerId);
+  });
+
+  button.addEventListener('pointermove', (event) => {
+    if (drag?.id !== event.pointerId) return;
+    const dx = event.clientX - drag.x;
+    const dy = event.clientY - drag.y;
+    if (!drag.axis) {
+      if (Math.max(Math.abs(dx), Math.abs(dy)) < 8) return;
+      drag.axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+      suppressClick = true;
+    }
+    if (drag.axis !== 'x') return;
+
+    const bounded = Math.max(-drag.width, Math.min(dx, drag.width));
+    const offset = canStep(dx < 0 ? 1 : -1) ? bounded : bounded / 4;
+    button.classList.add('is-dragging');
+    track.style.setProperty('--photo-offset', offset + 'px');
+  });
+
+  function finish(event) {
+    if (drag?.id !== event.pointerId) return;
+    const dx = event.clientX - drag.x;
+    if (event.type === 'pointerup' && drag.axis === 'x' && Math.abs(dx) >= Math.min(70, drag.width * 0.18)) {
+      step(dx < 0 ? 1 : -1);
+    }
+    drag = undefined;
+    button.classList.remove('is-dragging');
+    track.style.removeProperty('--photo-offset');
+  }
+
+  for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) {
+    button.addEventListener(type, finish);
+  }
+  button.addEventListener('click', (event) => {
+    if (suppressClick && event.detail > 0) event.stopImmediatePropagation();
+  }, { capture: true });
+}
+
 function postCard(post) {
   const card = select('#post-card').content.firstElementChild.cloneNode(true);
   select('.identity', card).replaceWith(identity(post.author));
@@ -138,37 +233,7 @@ function postCard(post) {
   time.hidden = !time.textContent;
 
   const photos = imagesOf(post);
-  if (photos.length) {
-    let index = 0;
-    const media = select('.post-media', card);
-    const photo = select('img', media);
-    const previous = select('.previous', media);
-    const next = select('.next', media);
-    const position = select('.photo-index', media);
-    media.hidden = false;
-    photo.loading = 'lazy';
-    select('.photo-open', media).addEventListener('click', () => {
-      if (screen !== 'post') {
-        location.assign(postUrl(post.id));
-        return;
-      }
-      const url = new URL(photos[index], location.origin);
-      if (['https:', 'http:'].includes(url.protocol)) {
-        window.open(url.href, '_blank', 'noopener,noreferrer');
-      }
-    });
-    function showPhoto() {
-      photo.src = photos[index];
-      photo.alt = '게시물 사진 ' + (index + 1);
-      position.textContent = (index + 1) + ' / ' + photos.length;
-      position.hidden = photos.length < 2;
-      previous.hidden = index === 0;
-      next.hidden = index === photos.length - 1;
-    }
-    previous.onclick = () => { index -= 1; showPhoto(); };
-    next.onclick = () => { index += 1; showPhoto(); };
-    showPhoto();
-  }
+  if (photos.length) setupPhotoGallery(select('.post-media', card), photos, post.id);
 
   const likeButton = select('.like-button', card);
   const likeCount = select('.like-count', card);
@@ -382,10 +447,13 @@ async function showProfile() {
     if (user.username === viewer.username) {
       actions.append(link('/users/me/edit', '프로필 편집', 'secondary'));
     } else {
-      const button = node('button', '', 'primary');
+      const button = node('button', '', 'primary profile-follow-button');
       button.type = 'button';
       let following = Boolean(profile.followed_by_me);
-      const refresh = () => { button.textContent = following ? '팔로잉' : '팔로우'; };
+      function refresh() {
+        button.textContent = following ? '팔로잉' : '팔로우';
+        button.setAttribute('aria-pressed', String(following));
+      }
       refresh();
       button.onclick = () => run(button, async () => {
         const data = await api(path + '/follow', { method: following ? 'DELETE' : 'POST' });
