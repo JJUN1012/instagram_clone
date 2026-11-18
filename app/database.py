@@ -89,3 +89,18 @@ def upload_image_to_supabase(file: UploadFile, folder: str = "posts") -> str:
     path = f"{folder}/{uuid4().hex}{extension}"
     bucket.upload(path, data, file_options={"content-type": content_type})
     return bucket.get_public_url(path)
+
+def delete_image_from_supabase(public_url: str | None) -> None:
+    """Supabase Public URL?? ?? ? ?? ??? ??? Storage?? ??"""
+    if not public_url:
+        return
+    bucket_name = os.environ["SUPABASE_BUCKET"]
+    marker = f"/object/public/{bucket_name}/"
+    if marker not in public_url:
+        return
+    file_path = public_url.split(marker, 1)[1].split("?", 1)[0]
+    if file_path:
+        try:
+            bucket.remove([file_path])
+        except Exception:
+            pass
