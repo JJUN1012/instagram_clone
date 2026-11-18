@@ -46,10 +46,11 @@ def get_feed(
     current_user=Depends(require_user),
 ):
     cur = db.cursor(dictionary=True)
-    params = [current_user["user_id"], current_user["user_id"]]
+    uid = current_user["user_id"]
+    params = [uid, uid, uid, uid]
     where_clause = ""
     if cursor is not None:
-        where_clause = "WHERE p.post_id < %s"
+        where_clause = "AND p.post_id < %s"
         params.append(cursor)
     params.append(limit + 1)
 

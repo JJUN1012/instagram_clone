@@ -14,6 +14,10 @@ SELECT
     EXISTS(SELECT 1 FROM follows WHERE follower_id = %s AND followee_id = u.user_id) AS followed_by_me
 FROM post p
 JOIN user u ON p.user_id = u.user_id
+WHERE (
+    p.user_id = %s
+    OR p.user_id IN (SELECT followee_id FROM follows WHERE follower_id = %s)
+)
 {where_clause}
 ORDER BY p.post_id DESC
 LIMIT %s;
