@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from pydantic import BaseModel
-from app.database import get_db, load_query, upload_image_to_supabase
+from app.database import delete_image_from_supabase, get_db, load_query, upload_image_to_supabase
 from app.routers.auth import hash_password, require_user
 from app.routers.posts import fetch_post_images, format_post
 
@@ -47,15 +47,21 @@ def update_me(
         if cur.fetchone():
             raise HTTPException(status_code=409, detail="?? ?? ?? ??????.")
 
-    new_profile_url = current_user["user_profile_url"]
+    old_profile_url = current_user["user_profile_url"]
+    new_profile_url = old_profile_url
+    uploaded_new_profile = False
     if profile_image and profile_image.filename:
         new_profile_url = upload_image_to_supabase(profile_image, folder="profiles")
+        uploaded_new_profile = True
 
     cur.execute(
         load_query("users.sql", "update_user_profile"),
         (clean_name, clean_username, bio, new_profile_url, current_user["user_id"]),
     )
     db.commit()
+
+    if uploaded_new_profile and old_profile_url and old_profile_url != new_profile_url:
+        delete_image_from_supabase(old_profile_url)
     return {
         "id": current_user["user_id"],
         "username": clean_username,
