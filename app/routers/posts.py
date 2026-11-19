@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
-from app.database import get_db, load_query, upload_image_to_supabase
+from app.database import delete_image_from_supabase, get_db, load_query, upload_image_to_supabase
 from app.routers.auth import require_user
 
 router = APIRouter(prefix="/api/v1")
@@ -119,9 +119,15 @@ def delete_post(post_id: int, db=Depends(get_db), current_user=Depends(require_u
     if post["user_id"] != current_user["user_id"]:
         raise HTTPException(status_code=403, detail="?? ???? ??? ? ????.")
 
+    images_map = fetch_post_images(cur, [post_id])
+    image_urls = images_map.get(post_id, [])
+
     cur.execute(load_query("posts.sql", "delete_post_images"), (post_id,))
     cur.execute(load_query("posts.sql", "delete_post_likes"), (post_id,))
     cur.execute(load_query("posts.sql", "delete_post_comments"), (post_id,))
     cur.execute(load_query("posts.sql", "delete_post"), (post_id,))
     db.commit()
+
+    for url in image_urls:
+        delete_image_from_supabase(url)
     return {"success": True}
