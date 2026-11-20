@@ -19,6 +19,18 @@ function link(href, value, css) {
   return element;
 }
 
+function appendMentionText(container, text) {
+  const mentions = /(?<![\p{L}\p{M}\p{N}_.+/@-])@([\p{L}\p{N}_](?:[\p{L}\p{M}\p{N}_.-]*[\p{L}\p{M}\p{N}_])?)/gu;
+  let offset = 0;
+  for (const match of text.matchAll(mentions)) {
+    const [label, name] = match;
+    if (name.length > 50) continue;
+    container.append(text.slice(offset, match.index), link(profileUrl(name), label, 'mention'));
+    offset = match.index + label.length;
+  }
+  container.append(text.slice(offset));
+}
+
 function showStatus(message = '', error = false) {
   status.hidden = !message;
   status.textContent = message;
@@ -257,8 +269,12 @@ function postCard(post) {
   showLikes();
 
   const caption = select('.caption', card);
-  if (post.content) caption.append(link(profileUrl(post.author.username), post.author.username), ' ' + post.content);
-  else caption.hidden = true;
+  if (post.content) {
+    caption.append(link(profileUrl(post.author.username), post.author.username), ' ');
+    appendMentionText(caption, post.content);
+  } else {
+    caption.hidden = true;
+  }
   card.querySelectorAll('.comment-link').forEach((item) => {
     item.href = postUrl(post.id) + '/comments';
   });
@@ -328,7 +344,8 @@ function commentRow(comment) {
   item.dataset.commentId = comment.id;
   const body = node('div', '', 'comment-body');
   const who = identity(comment.author);
-  const content = node('p', comment.content);
+  const content = node('p');
+  appendMentionText(content, comment.content);
   const time = node('time', displayDate(comment.created_at));
   time.dateTime = comment.created_at || '';
   const meta = node('div', '', 'comment-meta');
