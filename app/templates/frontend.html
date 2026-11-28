@@ -4,11 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{ title }} · Instagram</title>
-  <link rel="stylesheet" href="{{ url_for('frontend_assets', path='css/instagram.css') }}">
+  <link rel="stylesheet" href="{{ url_for('frontend_assets', path='css/instagram.css') }}?v=mentions-1">
   {% if screen in ('login', 'signup') %}
     <link rel="stylesheet" href="{{ url_for('frontend_assets', path='css/auth.css') }}">
   {% endif %}
-  <script type="module" src="{{ url_for('frontend_assets', path='js/instagram.js') }}"></script>
+  <script type="module" src="{{ url_for('frontend_assets', path='js/instagram.js') }}?v=mentions-1"></script>
 </head>
 <body data-screen="{{ screen }}" data-username="{{ username }}" data-post-id="{{ post_id }}">
 {% macro icon(name) %}<svg class="icon" aria-hidden="true"><use href="#icon-{{ name }}"/></svg>{% endmacro %}
